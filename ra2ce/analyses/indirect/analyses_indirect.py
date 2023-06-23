@@ -1003,10 +1003,21 @@ class IndirectAnalyses:
             results = results.set_crs(crs=crs)
             results.to_crs(crs=nearest_utm, inplace=True)
 
+            # Buffer around the flooded roads
+            results_flooded_roads = gpd.GeoDataFrame({'geometry':[e[-1]['geometry'] for e in edges_remove]}, crs=crs)
+            results_flooded_roads.to_crs(crs=nearest_utm, inplace=True)
+            results_flooded_roads.geometry = results_flooded_roads.geometry.buffer(
+                analysis["buffer_meters"]
+            )
+            results_flooded_roads[f"i_type_{hazard_name[:-3]}"] = 'flooded_road'
+
             results_buffered = results.copy()
             results_buffered.geometry = results_buffered.geometry.buffer(
                 analysis["buffer_meters"]
             )
+            results_buffered[f"i_type_{hazard_name[:-3]}"] = 'isolated_road'
+            results_buffered = gpd.GeoDataFrame(pd.concat([results_buffered, results_flooded_roads]))
+            del results_buffered['count']
             results_buffered.to_file(
                 self.config["output"]
                 / analysis["analysis"]
@@ -1025,7 +1036,7 @@ class IndirectAnalyses:
 
             # Save the results in isolated_locations
             intersect[f"i_{hazard_name[:-3]}"] = 1
-            intersect_join = intersect[[f"i_{hazard_name[:-3]}", "i_id"]]
+            intersect_join = intersect[[f"i_{hazard_name[:-3]}", "i_id", f"i_type_{hazard_name[:-3]}"]]
             isolated_locations = isolated_locations.merge(
                 intersect_join, on="i_id", how="left"
             )
@@ -1035,7 +1046,7 @@ class IndirectAnalyses:
 
             # make an overview of the isolated_locations, aggregated per category (category is specified by the user)
             df_aggregation = (
-                isolated_locations.groupby(by=analysis["category_field_name"])[
+                isolated_locations.groupby(by=[analysis["category_field_name"], f"i_type_{hazard_name[:-3]}"])[
                     f"i_{hazard_name[:-3]}"
                 ]
                 .sum()

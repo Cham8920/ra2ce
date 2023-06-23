@@ -179,6 +179,9 @@ class Network:
         edges_complex = nut.join_nodes_edges(nodes, edges, id_name)
         edges_complex.crs = crs  # set the right CRS
 
+        edges_complex = edges_complex.loc[~edges_complex["node_A"].isnull()]
+        edges_complex = edges_complex.loc[~edges_complex["node_B"].isnull()]
+
         assert (
             edges_complex["node_A"].isnull().sum() == 0
         ), "Some edges cannot be assigned nodes, please check your input shapefile."
