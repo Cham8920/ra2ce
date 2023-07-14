@@ -748,9 +748,9 @@ class Hazard:
                 hazard_crs = pyproj.CRS.from_user_input(
                     self.config["hazard"]["hazard_crs"]
                 )
-                graph_crs = pyproj.CRS.from_user_input(
-                    "EPSG:4326"
-                )  # this is WGS84, TODO: Make flexible by including in the network ini
+                graph_crs = graph.graph.get(
+                    "crs", pyproj.CRS.from_user_input("EPSG:4326")
+                )  # get crs from graph attribute. If None, use EPSG:4326
 
                 if (
                     hazard_crs != graph_crs
@@ -933,10 +933,16 @@ class Hazard:
             # spatial join the locations with the network edges
             logging.info("Spatial join the locations with the network edges")
             edges = self.graphs["base_network"]
-            edges["edge_fid"] = [f"{na}_{nb}" for na, nb in edges[["node_A", "node_B"]].values]
-            locations = gpd.sjoin_nearest(locations, edges, how="left", distance_col = "edges_distance")
+            edges["edge_fid"] = [
+                f"{na}_{nb}" for na, nb in edges[["node_A", "node_B"]].values
+            ]
+            locations = gpd.sjoin_nearest(
+                locations, edges, how="left", distance_col="edges_distance"
+            )
             if locations["edges_distance"].isna().sum() > 0:
-                logging.warning("Some locations are not connected to the network. These locations will be removed from the isolation analysis.")
+                logging.warning(
+                    "Some locations are not connected to the network. These locations will be removed from the isolation analysis."
+                )
 
             # Check if the locations need to be reprojected
             locations_crs = pyproj.CRS.from_user_input(locations.crs)

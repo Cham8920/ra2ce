@@ -1043,7 +1043,6 @@ def graph_check_create_unique_ids(
     if len(set([str(e[-1][id_name]) for e in graph.edges.data(keys=True)])) < len(
         graph.edges()
     ):
-
         i = 0
         for u, v, k in graph.edges(keys=True):
             graph[u][v][k][new_id_name] = i
@@ -1397,7 +1396,7 @@ def get_graph_edges_extent(
     ].bounds
 
     # Compare with the bounds of all other edges to see if there are linestrings with more extreme bounds
-    for (_, _, geom) in network_graph.edges.data("geometry"):
+    for _, _, geom in network_graph.edges.data("geometry"):
         # print(u, v, geom)
         (
             minx,

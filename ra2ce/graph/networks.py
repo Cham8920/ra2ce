@@ -109,10 +109,12 @@ class Network:
 
         # Cleanup
         # TODO: remove the attributes once cleanup function is used
-        self._cleanup_options = config.get("cleanup", {"cleanup": False})
-        if self._cleanup_options["cleanup"] is True:
+        self._cleanup_options = config.get("cleanup", None)
+        if self._cleanup_options is not None:
             if any([v for k, v in self._cleanup_options.items()]):
                 self._cleanup_options.update({"cleanup": True})
+            else:
+                self._cleanup_options.update({"cleanup": False})
             self.snapping = self._cleanup_options.get("snapping_threshold", None)
             self.segmentation_length = self._cleanup_options.get(
                 "segmentation_length", None
@@ -273,9 +275,9 @@ class Network:
 
     @staticmethod
     def convert_lines_to_graph(
-        lines: gpd.GeoDataFrame, directed: bool = False
+        lines: gpd.GeoDataFrame, data: bool = True, directed: bool = False
     ) -> nx.Graph:
-        """_summary_
+        """convert lines to graph, with all the data from lines as attributes
 
         Args:
             lines (gpd.GeoDataFrame): lines to be converted into graph
@@ -292,7 +294,12 @@ class Network:
         for index, row in lines.iterrows():
             from_node = row.geometry.coords[0]
             to_node = row.geometry.coords[-1]
-            G.add_edge(from_node, to_node, id=row.index, geometry=row.geometry)
+            if data is True:
+                G.add_edge(from_node, to_node, **row)
+            else:
+                G.add_edge(
+                    from_node, to_node, edge_fid=row.edge_fid, geometry=row.geometry
+                )
         if not directed:
             G = G.to_undirected()
         return G
@@ -315,7 +322,6 @@ class Network:
         edges.rename(
             {"node_start": "node_A", "node_end": "node_B"}, axis=1, inplace=True
         )
-        edges = edges.drop(columns=["id"])  # drop columns that are not used.
         if "crs" in G.graph:
             crs = G.graph["crs"]
         if crs is not None:
@@ -693,8 +699,8 @@ class Network:
         # simple cleanup # FIXME: part of cleanup, think about where to put this
         lines = Network.explode_and_dropduplicated_lines(lines)
 
-        # convert to graph
-        G = Network.convert_lines_to_graph(lines)
+        # convert to graph without attributes
+        G = Network.convert_lines_to_graph(lines, data=False)
 
         return G
 
@@ -732,10 +738,14 @@ class Network:
             base_graph = Network.create_graph_from_clean_shapefiles(
                 fns=fns, id_col=file_id, crs=self.crs
             )
-            network_gdf, _ = Network.convert_graph_to_gdf(
+            edges_gdf, nodes_gdf = Network.convert_graph_to_gdf(
                 base_graph
             )  # FIXME warning due to Approach = "primal" not in G.graph
-            base_graph = nx.MultiDiGraph(base_graph)  # FIXME: why must be a multigraph?
+            # Create networkx graph again
+            base_graph = nut.graph_from_gdf(
+                edges_gdf, nodes_gdf, node_id="node_fid"
+            )  # FIXME what does this step do?
+            network_gdf = edges_gdf
 
         elif source == "shapefile":
             logging.info("Start creating a network from the submitted shapefiles")
@@ -866,6 +876,8 @@ class Network:
                 self.origins[0] = self.generate_origins_from_raster()
             od_graph = self.add_od_nodes(self.base_graph, self.base_graph_crs)
             self.od_graph = od_graph
+        else:
+            self.od_graph = None
 
     def _save_network(self, save_pickle: bool = True, save_shp: bool = False, **kwargs):
         """Save the 'base' network as gpickle and if the user requested, also as shapefile.
@@ -880,7 +892,7 @@ class Network:
             self._export_network_files(self.base_graph, "base_graph", save_options)
 
         if self.base_network is not None:
-            self._export_network_files(self.network_gdf, "base_network", save_options)
+            self._export_network_files(self.base_network, "base_network", save_options)
 
         if self.od_graph is not None:
             self._export_network_files(
@@ -899,7 +911,7 @@ class Network:
 
         # 1. Create the base network from the network source #TODO: examine underscore functions are they race specific?
         self._create_base_network_from_source(**self._network_options)
-        
+
         # 2. create the attributes
         self._calculate_base_network_attributes()
 
@@ -914,7 +926,7 @@ class Network:
 
         return {
             "base_graph": self.base_graph,
-            "base_network": self.network_gdf,
+            "base_network": self.base_network,
             "origins_destinations_graph": self.od_graph,
         }
 

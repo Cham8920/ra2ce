@@ -49,7 +49,7 @@ def network_handler(config: dict, files: dict) -> Optional[dict]:
 
 
 def hazard_handler(config: dict, graphs: dict, files: dict) -> Optional[dict]:
-    if config["hazard"]["hazard_map"] is not None:
+    if "hazard" in config and config["hazard"]["hazard_map"] is not None:
         # There is a hazard map or multiple hazard maps that should be intersected with the graph.
         hazard = Hazard(config, graphs, files)
         graphs = hazard.create()
