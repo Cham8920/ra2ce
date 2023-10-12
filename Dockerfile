@@ -1,4 +1,4 @@
-FROM  mambaorg/micromamba:1.4-alpine AS full
+FROM mambaorg/micromamba:alpine as full
 
 # ENV_NAME is starting a bash inm this environment 
 
